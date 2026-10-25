@@ -1,0 +1,12 @@
+{
+  "name":"Chaotic TCG — Protótipo de Batalha",
+  "short_name":"Chaotic TCG",
+  "description":"Protótipo de montagem de equipe e batalhas por turnos em Perim.",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "orientation":"any",
+  "background_color":"#110e20",
+  "theme_color":"#120f23",
+  "icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]
+}
