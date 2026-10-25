@@ -342,3 +342,41 @@ html,body{overscroll-behavior:none}
 @media(max-width:780px){.bd-capx-prep .bd-preparation .bd-location-hand{bottom:10%;height:18%}}
 @media(max-width:540px) and (orientation:portrait){.bd-capx-prep .bd-preparation .bd-location-hand{bottom:6%;height:10%}}
 @media(max-height:500px) and (orientation:landscape){.bd-capx-prep .bd-preparation .bd-location-hand{bottom:7%;height:17%}}
+
+/* v0.7 — O local não fica mais sobre as criaturas na seleção. */
+.bd-selection:not(.bd-movement) .bd-center-box{display:none!important}
+.bd-select-command{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.bd-loc-summary{display:flex;align-items:center;gap:8px;max-width:min(28%,290px);min-width:110px;flex:0 1 auto}
+.bd-loc-summary img{width:37px;height:49px;object-fit:cover;border:2px solid #e8df34;border-radius:4px;flex-shrink:0}
+.bd-loc-summary span{min-width:0;display:flex;flex-direction:column;gap:3px}
+.bd-loc-summary strong{font-size:11px;color:#e7ed70;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-loc-summary small{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}
+.bd-location-reel-track{transform:translateX(0);will-change:transform}
+.bd-location-reel-track.spinning{animation:none!important}
+.bd-movement .bd-advance-target{cursor:pointer;pointer-events:auto;opacity:1!important;filter:drop-shadow(0 0 9px #eced43)}
+.bd-movement .bd-advance-target .bd-card-portrait{border:3px solid #edee42!important;background:#22554dcc!important;animation:chaoticAdvanceGlow 1.05s ease-in-out infinite alternate}
+.bd-movement .bd-empty-defeat:not(.bd-advance-target){opacity:.48}
+.bd-hero-mark{position:absolute;z-index:8;right:-5px;top:-7px;background:#3dd8ef;color:#001b2c;font-weight:900;font-size:9px;padding:2px 3px;border-radius:3px}
+.bd-occupied-hero .bd-card-portrait{border:3px solid #53eaff!important}
+.bd-move-icon{display:grid;place-items:center;width:100%;height:100%;font-size:26px;color:#f1f36f;text-shadow:0 0 10px #d2f845}
+.bd-move-message{position:absolute;left:50%;transform:translateX(-50%);z-index:5;bottom:8%;width:min(69%,630px);padding:6px 12px;border:1px solid #e6e15e;border-radius:10px;background:#06343ae0;color:#e9f6ec;text-align:center;display:flex;gap:3px;flex-direction:column;pointer-events:none}
+.bd-move-message strong{font-size:clamp(11px,1.3vw,17px);color:#fff471}
+.bd-move-message span{font-size:clamp(9px,.9vw,12px)}
+@keyframes chaoticAdvanceGlow{to{box-shadow:0 0 12px #f5e837}}
+@media(max-width:800px){.bd-loc-summary{max-width:37%}.bd-loc-summary small{display:none}.bd-move-message{width:76%;bottom:7%}}
+@media(max-width:540px){.bd-select-command{gap:4px}.bd-loc-summary{min-width:82px;max-width:36%}.bd-loc-summary img{width:28px;height:39px}.bd-loc-summary strong{font-size:9px}.bd-move-message{width:80%;bottom:8%;padding:3px 5px}.bd-move-message strong{font-size:10px}.bd-move-message span{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.bd-movement .bd-advance-target .bd-card-portrait{animation:none}}
+
+/* CAPX: quatro colunas verticais identificadas por cor (criatura, local, Mugic, equipamento). */
+.bd-prep-scanner .bd-vertical-station{grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(2px,.3vw,5px)}
+.bd-prep-scanner .bd-vreel[data-reel-kind="location"]{border-color:#eeeeef;background:#394a53}
+.bd-prep-scanner .bd-vreel[data-reel-kind="location"] .bd-vreel-item.current{border-color:#fff}
+.bd-prep-scanner .bd-vreel[data-reel-kind="creature"]{border-color:#20e845}
+.bd-prep-scanner .bd-vreel[data-reel-kind="gear"]{border-color:#2a8afd}
+.bd-prep-scanner .bd-vreel[data-reel-kind="mugic"]{border-color:#c147f6}
+.bd-prep-scanner .bd-vreel-item{width:min(92%,79px)}
+.bd-movement .bd-squad-right .bd-advance-target{z-index:9!important;opacity:1!important}
+.bd-movement .bd-squad-right .bd-advance-target .bd-card-portrait{background:linear-gradient(180deg,#467c72,#07514b)!important}
+.bd-occupied-hero{animation:bdHeroArrives .5s ease-out both}
+@keyframes bdHeroArrives{from{transform:translateX(-26px) scale(.7);opacity:.4}to{transform:translateX(0) scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.bd-occupied-hero{animation:none}}
