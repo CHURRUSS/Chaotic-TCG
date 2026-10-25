@@ -1,6 +1,6 @@
 {
-  "name":"Chaotic TCG — Protótipo de Batalha",
-  "short_name":"Chaotic TCG",
+  "name":"Chaotic BattleDrome — Protótipo de Batalha",
+  "short_name":"Chaotic BattleDrome",
   "description":"Protótipo de montagem de equipe e batalhas por turnos em Perim.",
   "start_url":"./",
   "scope":"./",
