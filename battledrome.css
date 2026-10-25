@@ -380,3 +380,41 @@ html,body{overscroll-behavior:none}
 .bd-occupied-hero{animation:bdHeroArrives .5s ease-out both}
 @keyframes bdHeroArrives{from{transform:translateX(-26px) scale(.7);opacity:.4}to{transform:translateX(0) scale(1);opacity:1}}
 @media(prefers-reduced-motion:reduce){.bd-occupied-hero{animation:none}}
+
+
+/* v0.8 — Leitor com carta à esquerda e informações verificáveis à direita */
+.bd-scan-screen.bd-scan-screen-v08{display:grid!important;grid-template-columns:minmax(0,41%) minmax(0,59%);gap:4px!important;align-items:stretch!important;justify-items:stretch!important;min-height:0;padding:4px!important;overflow:hidden}
+.bd-scan-card-stack{display:flex;flex-direction:column;min-width:0;min-height:0;align-items:center;gap:2px;justify-content:center;z-index:2}
+.bd-scan-card-stack .bd-scan-heading{font-size:clamp(7px,.65vw,10px)!important;white-space:nowrap;text-align:center;line-height:1.2}
+.bd-scan-card-stack .bd-scan-feature{width:100%;height:100%;flex:1 1 0;min-height:0}
+.bd-scan-card-stack .bd-scan-feature img{max-width:92%;height:100%;object-fit:contain}
+.bd-scan-drag-hint{font-weight:900;font-size:clamp(6px,.62vw,9px);color:#fbf35a;white-space:nowrap}
+.bd-fact-panel{min-height:0;min-width:0;border:1px solid #72babf80;border-radius:6px;background:linear-gradient(180deg,#0a3745db,#041b27de);color:#e8faf8;padding:clamp(3px,.42vw,7px);display:flex;flex-direction:column;gap:4px;overflow:auto;overscroll-behavior:contain;z-index:3;scrollbar-width:thin;scrollbar-color:#6bb6b6 #092c37}
+.bd-fact-header{display:flex;gap:5px;align-items:start;justify-content:space-between;border-bottom:1px solid #68a9a96e;padding:1px 0 4px}
+.bd-fact-header strong{font-size:clamp(9px,.94vw,14px);line-height:1.15;overflow-wrap:anywhere}
+.bd-fact-source{color:#f0ea55;font-weight:800;text-decoration:none;font-size:clamp(7px,.58vw,10px);white-space:nowrap}
+.bd-facts-title{font-size:clamp(7px,.7vw,10px);letter-spacing:.6px;font-weight:900;color:#f9ee5c;margin:1px 0 4px}
+.bd-facts-title small{display:block;font-size:.85em;color:#7ac4cf}
+.bd-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}
+.bd-fact{background:#12526092;border:1px solid #5dbdb35f;border-radius:4px;min-width:0;display:flex;align-items:center;justify-content:space-between;padding:3px 4px;gap:3px}
+.bd-fact span{font-size:clamp(7px,.62vw,10px);letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-fact b{font-size:clamp(9px,.9vw,14px);color:#ffe95b;white-space:nowrap}
+.bd-fact-ability{margin:4px 0 0;font-size:clamp(8px,.76vw,11px);line-height:1.3;color:#e3f5f3}
+.bd-fact-ability strong{color:#e1f16b;font-size:.9em;display:block;margin-bottom:2px}
+.bd-fact-note{font-size:clamp(7px,.61vw,9px);color:#94bdbd;line-height:1.23;margin:1px 0 0}
+.bd-fact-highlight{color:#a6ffaa;font-weight:850;font-size:clamp(9px,.9vw,13px);line-height:1.2;margin:2px 0 1px}
+.bd-mini-stats{position:absolute;top:0;left:0;right:0;z-index:5;background:#041922de;border-bottom:1px solid #9dbeca;color:#fcf479;font-size:clamp(6px,.55vw,9px);font-weight:900;line-height:1.35;white-space:nowrap;text-align:center;pointer-events:none}
+.bd-duel-real{font-size:clamp(8px,.7vw,11px)!important;color:#f6e98f!important;white-space:normal!important;line-height:1.15!important}
+@media(max-width:780px){.bd-fact-panel{padding:3px;gap:2px}.bd-fact{padding:2px}.bd-fact-header{padding-bottom:2px}.bd-scan-screen.bd-scan-screen-v08{grid-template-columns:minmax(0,38%) minmax(0,62%)}.bd-fact-note{display:none}.bd-fact-ability{line-height:1.13}}
+@media(max-width:540px) and (orientation:portrait){
+ .bd-prep-scanner .bd-scan-screen.bd-scan-screen-v08{flex:0 0 54%!important;height:100%;min-width:0;grid-template-columns:minmax(0,35%) minmax(0,65%)!important}
+ .bd-fact-ability{font-size:7px;line-height:1.15;margin:2px 0 0}
+ .bd-fact b{font-size:9px}.bd-fact span{font-size:7px}
+ .bd-facts-title{font-size:7px}.bd-fact-header strong{font-size:9px}
+ .bd-fact-panel{padding:2px;gap:1px}.bd-stat-grid{gap:2px}
+ .bd-scan-card-stack .bd-scan-heading{font-size:7px!important}
+ .bd-scan-drag-hint{font-size:6px}
+}
+@media(max-height:500px) and (orientation:landscape){.bd-fact-ability{font-size:8px;line-height:1.18}.bd-fact-panel{gap:2px;padding:2px}.bd-fact{padding:1px 2px}.bd-fact-header strong{font-size:9px}.bd-scan-drag-hint{font-size:7px}}
+
+.bd-compare-stats{color:#ffea7a!important;display:block;white-space:normal;line-height:1.2;font-size:9px!important}

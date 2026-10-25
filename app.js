@@ -1,4 +1,5 @@
 import {creatures,gears,mugics,locations,formatName,art,elements,DEFAULT_DECK,getCreature,getGear,getMugic,getLocation} from './data.js';
+import {officialFor} from './official-data.js';
 const root=document.getElementById('app');
 const DECK_KEY='chaotic-tcg-deck-alpha-v06', BATTLE_KEY='chaotic-tcg-battle-alpha-1', STATS_KEY='chaotic-tcg-stats-alpha-1';
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -100,7 +101,7 @@ const saveDeck=()=>store(DECK_KEY,deck);
 const saveBattle=()=>{if(battle)store(BATTLE_KEY,battle)};
 const eraseBattle=()=>{battle=null;localStorage.removeItem(BATTLE_KEY)};
 function toast(msg){document.querySelector('.toast')?.remove();clearTimeout(toastTimer);const n=document.createElement('div');n.className='toast';n.role='status';n.textContent=msg;document.body.append(n);toastTimer=setTimeout(()=>n.remove(),2700)}
-function header(){return `<header class="site-head"><img class="brand-logo" src="assets/ui/logo.webp" alt="Chaotic"><span class="brand-copy"><strong>CHAOTIC TCG</strong><small>BATTLEDROME · ROLETAS 0.7</small></span><div class="header-actions"><button class="btn sm ghost sound-toggle" data-act="soundToggle" aria-label="Alternar efeitos sonoros" aria-pressed="${soundEnabled}">${soundEnabled?'♪ SOM':'♪ MUDO'}</button><button class="btn sm ghost" data-act="home">⌂ Início</button><button class="btn sm ${page==='deck'?'primary':'ghost'}" data-act="deck">▦ Minha equipe</button>${battle?`<button class="btn sm ${page==='battle'?'primary':'ghost'}" data-act="resume">⚔ Arena</button>`:''}</div></header>`}
+function header(){return `<header class="site-head"><img class="brand-logo" src="assets/ui/logo.webp" alt="Chaotic"><span class="brand-copy"><strong>CHAOTIC TCG</strong><small>BATTLEDROME · CARTAS 0.8</small></span><div class="header-actions"><button class="btn sm ghost sound-toggle" data-act="soundToggle" aria-label="Alternar efeitos sonoros" aria-pressed="${soundEnabled}">${soundEnabled?'♪ SOM':'♪ MUDO'}</button><button class="btn sm ghost" data-act="home">⌂ Início</button><button class="btn sm ${page==='deck'?'primary':'ghost'}" data-act="deck">▦ Minha equipe</button>${battle?`<button class="btn sm ${page==='battle'?'primary':'ghost'}" data-act="resume">⚔ Arena</button>`:''}</div></header>`}
 function home(){return `<div class="bd-page bd-home"><div class="bd-kicker">INTERFACE DE PERIM <span>▸</span> BATTLEDROME</div><section class="bd-board bd-home-stage">
   ${bdBoardDecor('home')}
   <div class="bd-home-copy"><span class="bd-tag">SISTEMA DE BATALHA INICIADO</span><h1>ENTRE NO<br><em>BATTLEDROME</em></h1><p>Forme seu exército. Escolha os locais. Revele o cenário e decida quem enfrentará quem.</p><div class="bd-buttons"><button class="bd-btn gold" data-act="deck">PREPARAR EXÉRCITO</button><button class="bd-btn" data-act="${battle?'resume':'start'}">${battle?'CONTINUAR BATALHA':'INICIAR BATALHA'}</button></div></div>
@@ -143,7 +144,7 @@ function bdSquad(cards,side,mode='prep'){
   const attr=action?`data-act="${action}" data-i="${action==='advanceChampion'?slot:index}"${action==='pickFighter'?` data-side="${owner}"`:''}`:'';
   const drag=mode==='prep'?`data-drop-kind="creature" data-drop-i="${slot}"`:'';
   const gearMark=mode==='prep'&&id&&deck.gears[id]?`<span class="bd-slot-gear">⚙</span>`:'';
-  return `<button type="button" class="bd-unit ${positions[slot]} ${active?'chosen':''} ${vacant?'unfilled':''} ${dead?'bd-empty-defeat':''} ${invalid?'blocked':''} ${champion?'bd-occupied-hero':''} ${canAdvance?'bd-advance-target':''}" ${attr} ${drag} ${!action||invalid?'disabled':''} aria-label="${canAdvance?'Avançar campeão para casa '+(slot+1):champion?'Seu campeão avançado':side==='left'?'Sua equipe':'Equipe rival'}${id?': '+safe(label(id)):' · casa vazia'}"><span class="bd-card-portrait">${id?`<img src="${photo('creature',id)}" alt="${safe(label(id))}">`:canAdvance?'<b class="bd-move-icon">↗</b>':bdCardBack()}</span><span class="bd-unit-number">0${slot+1}</span>${champion?'<span class="bd-hero-mark">SEU</span>':''}${gearMark}${item&&typeof item==='object'?`<span class="bd-life" style="--life:${Math.max(0,item.hp/item.maxHp*100)}%"></span>`:''}</button>`;
+  return `<button type="button" class="bd-unit ${positions[slot]} ${active?'chosen':''} ${vacant?'unfilled':''} ${dead?'bd-empty-defeat':''} ${invalid?'blocked':''} ${champion?'bd-occupied-hero':''} ${canAdvance?'bd-advance-target':''}" ${attr} ${drag} ${!action||invalid?'disabled':''} aria-label="${canAdvance?'Avançar campeão para casa '+(slot+1):champion?'Seu campeão avançado':side==='left'?'Sua equipe':'Equipe rival'}${id?': '+safe(label(id)):' · casa vazia'}"><span class="bd-card-portrait">${id?`<img src="${photo('creature',id)}" alt="${safe(label(id))}">`:canAdvance?'<b class="bd-move-icon">↗</b>':bdCardBack()}</span><span class="bd-unit-number">0${slot+1}</span>${champion?'<span class="bd-hero-mark">SEU</span>':''}${gearMark}${id?`<span class="bd-mini-stats" title="Energia original / contadores de Mugic (carta de referência)">E ${officialFor('creature',id)?.stats?.[0]??'—'} · ♫ ${officialFor('creature',id)?.mugic??'—'}</span>`:''}${item&&typeof item==='object'?`<span class="bd-life" style="--life:${Math.max(0,item.hp/item.maxHp*100)}%"></span>`:''}</button>`;
  }).join('')}</div>`;
 }
 
@@ -164,18 +165,38 @@ function bdLocationSpinner(){const ids=battle?.locations?.length?battle.location
  const reel=Array.from({length:8},()=>ids.map(id=>`<div class="bd-location-reel-card" data-location-id="${id}"><img src="${photo('location',id)}" alt=""><span>${safe(label(id))}</span></div>`).join('')).join('');
  return `<div class="bd-location-randomizer"><div class="bd-location-title">LOCALIZADOR · SORTEIO DO CENÁRIO</div><div class="bd-location-viewport"><div class="bd-location-reel-track">${reel}</div><span class="bd-location-pointer"></span></div><p>${locationSpinning?'LOCALIZANDO CENÁRIO…':'O jogador atacante gira a roleta para revelar o próximo local.'}</p><button class="bd-btn gold bd-spin-button" data-act="spinLocation" ${locationSpinning?'disabled':''}>${locationSpinning?'◌ GIRANDO…':'↔ GIRAR ROLETA DE LOCAIS'}</button></div>`;
 }
+function creatureBadge(id){const f=officialFor('creature',id);if(!f?.stats)return 'Atributos não confirmados';return `E ${f.stats[0]} · C ${f.stats[1]} · P ${f.stats[2]} · S ${f.stats[3]} · V ${f.stats[4]} · ♫ ${f.mugic??'—'}`;}
+function bdOfficialDetails(kind,card){
+ const f=officialFor(kind,card.id),noInfo='Informação oficial desta carta ainda não confirmada. O efeito do protótipo não é a regra original.';
+ const source=f?.source?`<a class="bd-fact-source" href="${safe(f.source)}" target="_blank" rel="noopener noreferrer" title="Ver referência da carta">↗ Fonte da carta</a>`:'';
+ const labelHead=f?.printedName||label(card.id);
+ const pill=(key,value)=>`<div class="bd-fact"><span>${key}</span><b>${value===null||value===undefined?'—':safe(String(value))}</b></div>`;
+ let content='';
+ if(kind==='creature'){
+  const stats=f?.stats;
+  content=`<div class="bd-facts"><div class="bd-facts-title">ATRIBUTOS ORIGINAIS <small>SCAN DE REFERÊNCIA</small></div><div class="bd-stat-grid">${pill('⚡ ENERGIA',stats?.[0])}${pill('◆ CORAGEM',stats?.[1])}${pill('⚔ PODER',stats?.[2])}${pill('✦ SABEDORIA',stats?.[3])}${pill('➤ VELOCIDADE',stats?.[4])}${pill('♫ MUGIC',f?.mugic)}</div><p class="bd-fact-ability"><strong>HABILIDADE</strong>${safe(f?.ability||noInfo)}</p><p class="bd-fact-note">Os valores podem variar entre scans e versões da mesma criatura. “—” = não confirmado.</p></div>`;
+ }else if(kind==='gear'){
+  content=`<div class="bd-facts"><div class="bd-facts-title">BATTLEGEAR · EFEITO DA CARTA</div><p class="bd-fact-highlight">${safe(f?.bonus||'Efeito numérico não confirmado')}</p><p class="bd-fact-ability"><strong>FUNCIONAMENTO ORIGINAL</strong>${safe(f?.ability||noInfo)}</p><p class="bd-fact-note">Em Chaotic, normalmente cada criatura equipa um Battlegear.</p></div>`;
+ }else if(kind==='location'){
+  content=`<div class="bd-facts"><div class="bd-facts-title">LOCAL · REGRAS ORIGINAIS</div>${pill('INICIATIVA',f?.initiative)}<p class="bd-fact-ability"><strong>EFEITO DO LOCAL</strong>${safe(f?.ability||noInfo)}</p><p class="bd-fact-note">A iniciativa do local determina quem age primeiro no combate.</p></div>`;
+ }else{
+  content=`<div class="bd-facts"><div class="bd-facts-title">MUGIC · REGRAS ORIGINAIS</div><div class="bd-stat-grid">${pill('TRIBO',f?.tribe||'Não confirmada')}${pill('CUSTO ♫',f?.cost)}</div><p class="bd-fact-ability"><strong>EFEITO DA CARTA</strong>${safe(f?.ability||noInfo)}</p><p class="bd-fact-note">O custo é pago usando os contadores de uma criatura compatível. A carta é consumida após o uso.</p></div>`;
+ }
+ return `<div class="bd-fact-panel"><div class="bd-fact-header"><strong>${safe(labelHead)}</strong>${source}</div>${content}${f?.note?`<small class="bd-fact-note">${safe(f.note)}</small>`:''}</div>`;
+}
 function bdScanner(){
  const config=WHEEL_TYPES[wheelType]||WHEEL_TYPES.creature;
  const card=config.list[wheelIndex[wheelType]%config.list.length];
  const colors={creature:'CRIATURA',gear:'EQUIPAMENTO',mugic:'MUGIC',location:'LOCAL'};
- const stat=wheelType==='creature'?`<span>ENERGIA <b>${card.hp}</b></span><span>⚔ ${card.power}</span><span>✦ ${card.wisdom}</span><span>⚡ ${card.speed}</span>`:wheelType==='location'?`<span>${safe(card.text||'Local para o próximo sorteio')}</span>`:wheelType==='gear'?`<span>${safe(card.text||'Equipamento')}</span>`:`<span>${safe(card.text||'Magia de Perim')}</span>`;
- return `<aside class="bd-prep-scanner" aria-label="Leitor de cartas com roletas como no CAPX">
-    <div class="bd-scan-screen"><span class="bd-scan-heading">◈ LEITOR DE CARTAS · ${colors[wheelType]}</span>
+ return `<aside class="bd-prep-scanner" aria-label="Leitor de cartas com dados originais de Chaotic">
+    <div class="bd-scan-screen bd-scan-screen-v08"><div class="bd-scan-card-stack">
+     <span class="bd-scan-heading">◈ LEITOR · ${colors[wheelType]}</span>
      <button class="bd-scan-feature" data-act="wheelApply" data-wheel-kind="${wheelType}" data-wheel-id="${card.id}" aria-label="Arrastar ${safe(label(card.id))} para o painel"><img draggable="false" src="${photo(wheelType,card.id)}" alt="${safe(label(card.id))}"></button>
-     <div class="bd-scan-details"><strong>${safe(label(card.id))}</strong><div class="bd-scan-stats">${stat}</div></div>
+     <small class="bd-scan-drag-hint">↗ ARRASTE A CARTA</small></div>
+     ${bdOfficialDetails(wheelType,card)}
     </div>
     ${bdWheel()}
-    <span class="bd-scanner-hint">↕ Quatro roletas como no CAPX · arraste a carta ou toque no local →</span>
+    <span class="bd-scanner-hint">↕ Gire a roleta · toque ou arraste a carta para posicioná-la</span>
    </aside>`;
 }
 function bdMugicSlots(){return `<div class="bd-drop-row" aria-label="Três espaços de Mugic"><span>PORTA-MUGIC</span><div class="bd-mugic-targets">${Array.from({length:3},(_,i)=>{const id=deck.mugics[i];return `<button class="bd-mugic-target ${mugicSelection===i?'selected':''}" data-drop-kind="mugic" data-drop-i="${i}" data-act="mugicSlot" data-i="${i}" aria-label="Mugic ${i+1}${id?': '+safe(label(id)):': vazio'}">${id?`<img src="${photo('mugic',id)}" alt="${safe(label(id))}">`:`<b>✦</b>`}<small>${i+1}</small></button>`}).join('')}</div><small>Arraste cartas da roleta para equipar · toque no espaço para selecioná-lo</small></div>`}
@@ -323,7 +344,7 @@ function selectBattlePage(){const loc=getLocation(battle.location),h=battle.acti
  <div class="bd-board-head"><span>SEU EXÉRCITO · CRIATURAS LIVRES</span><span>ALVOS ALCANÇÁVEIS</span></div>
  ${bdSquad(battle.hero,'left','selection')}${bdSquad(battle.foe,'right','selection')}
  ${bdLocationHand(battle.locations,false,battle.location)}
- </section><div class="bd-command-row bd-select-command"><div class="bd-loc-summary"><img src="${photo('location',loc.id)}" alt=""><span><strong>◈ ${safe(label(loc.id))}</strong><small>${safe(loc.text)}</small></span></div><div><strong>${h?safe(label(h.id)):'SELECIONE SUA CRIATURA'} <span class="bd-vs">VS</span> ${e?safe(label(e.id)):'SELECIONE O INIMIGO'}</strong><small>Selecione seu atacante e depois um alvo livre à frente.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="home">SAIR</button><button class="bd-btn gold" data-act="beginDuel" ${!h||!e?'disabled':''}>ENTRAR EM COMBATE ▸</button></div></div></div>`;
+ </section><div class="bd-command-row bd-select-command"><div class="bd-loc-summary"><img src="${photo('location',loc.id)}" alt=""><span><strong>◈ ${safe(label(loc.id))}</strong><small>${safe(officialFor('location',loc.id)?.ability||loc.text)}</small></span></div><div><strong>${h?safe(label(h.id)):'SELECIONE SUA CRIATURA'} <span class="bd-vs">VS</span> ${e?safe(label(e.id)):'SELECIONE O INIMIGO'}</strong><small>Selecione seu atacante e depois um alvo livre à frente.</small><small class="bd-compare-stats">${h?'SUA CARTA: '+creatureBadge(h.id):''} ${e?' · RIVAL: '+creatureBadge(e.id):''}</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="home">SAIR</button><button class="bd-btn gold" data-act="beginDuel" ${!h||!e?'disabled':''}>ENTRAR EM COMBATE ▸</button></div></div></div>`;
 }
 function advancePage(){
  const champion=battle.hero[battle.advanceIndex];
@@ -341,9 +362,9 @@ function battlePage(){if(!battle)return home();if(battle.phase==='advance')retur
  <section class="bd-board bd-duel" aria-label="Arena de batalha">${bdBoardDecor('duel')}
  <div class="bd-board-head"><span>EXÉRCITO DO JOGADOR</span><span>EXÉRCITO ADVERSÁRIO</span></div>
  ${bdSquad(battle.hero,'left','duel')}${bdSquad(battle.foe,'right','duel')}
- <div class="bd-duel-center"><div class="bd-duel-fighter hero"><img src="${photo('creature',h.id)}" alt="${safe(label(h.id))}"><strong>${safe(label(h.id))}</strong><span class="bd-hp"><i style="width:${Math.max(0,h.hp/h.maxHp*100)}%"></i></span><small>${h.hp}/${h.maxHp} VIDA</small></div><b class="bd-versus">VS</b><div class="bd-duel-fighter enemy"><img src="${photo('creature',e.id)}" alt="${safe(label(e.id))}"><strong>${safe(label(e.id))}</strong><span class="bd-hp"><i style="width:${Math.max(0,e.hp/e.maxHp*100)}%"></i></span><small>${e.hp}/${e.maxHp} VIDA</small></div></div>
+ <div class="bd-duel-center"><div class="bd-duel-fighter hero"><img src="${photo('creature',h.id)}" alt="${safe(label(h.id))}"><strong>${safe(label(h.id))}</strong><span class="bd-hp"><i style="width:${Math.max(0,h.hp/h.maxHp*100)}%"></i></span><small>${h.hp}/${h.maxHp} VIDA · PROTÓTIPO</small><small class="bd-duel-real">${creatureBadge(h.id)}</small></div><b class="bd-versus">VS</b><div class="bd-duel-fighter enemy"><img src="${photo('creature',e.id)}" alt="${safe(label(e.id))}"><strong>${safe(label(e.id))}</strong><span class="bd-hp"><i style="width:${Math.max(0,e.hp/e.maxHp*100)}%"></i></span><small>${e.hp}/${e.maxHp} VIDA · PROTÓTIPO</small><small class="bd-duel-real">${creatureBadge(e.id)}</small></div></div>
  <div class="bd-duel-location"><img src="${photo('location',loc.id)}" alt=""><span>${safe(label(loc.id))}</span></div>
- </section><div class="bd-command-row"><div><strong>${isTurn?'● SEU TURNO':battle.turn==='enemy'?'● VEZ DO ADVERSÁRIO':'CONFRONTO'}</strong><small>${safe(loc.text)}</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="home">SAIR DA ARENA</button></div></div>
+ </section><div class="bd-command-row"><div><strong>${isTurn?'● SEU TURNO':battle.turn==='enemy'?'● VEZ DO ADVERSÁRIO':'CONFRONTO'}</strong><small>${safe(officialFor('location',loc.id)?.ability||loc.text)}</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="home">SAIR DA ARENA</button></div></div>
  <section class="bd-actions"><div><span class="bd-overline">ATAQUES DISPONÍVEIS</span><div class="bd-attack-buttons">${attacks.map(([key,title])=>`<button class="bd-attack" data-act="attack" data-id="${key}" ${!isTurn?'disabled':''}>${title}</button>`).join('')}</div></div><div><span class="bd-overline">MUGICS PRONTOS</span><div class="bd-spells">${battle.mugics.map((s,i)=>`<button class="bd-spell ${s.used?'used':''}" data-act="cast" data-i="${i}" ${s.used||!isTurn?'disabled':''}><img src="${photo('mugic',s.id)}" alt=""><small>${safe(label(s.id))}</small></button>`).join('')||'<span>Sem Mugics preparados.</span>'}</div></div></section>
  <div class="bd-battle-log" role="log" aria-live="polite">${battle.log.slice(0,3).map(x=>`<p>${safe(x.text)}</p>`).join('')}</div></div>`;
 }
@@ -413,7 +434,7 @@ function clickAction(ev){const el=ev.target.closest('[data-act]');if(!el)return;
  if(a==='mugicSlot'){mugicSelection=i;wheelType='mugic';render();return}
  if(a==='wheelTab'){wheelType=id;render();return}
  if(a==='wheelTurn'){wheelTurn(Number(el.dataset.dir),id);return}
- if(a==='wheelApply'){wheelApply(el.dataset.wheelId,el.dataset.wheelKind);return}
+ if(a==='wheelApply'){wheelType=el.dataset.wheelKind||wheelType;wheelApply(el.dataset.wheelId,el.dataset.wheelKind);if(page==='deck')render();return}
  if(a==='removeCreatureSlot'){removeCreatureAt(slotSelection);return}
  if(a==='gearModal'){if(deck.creatures[slotSelection]){modal={type:'gear'};render()}return}
  if(a==='tab'){tab=id;render();return}
