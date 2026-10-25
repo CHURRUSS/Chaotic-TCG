@@ -51,7 +51,7 @@ export const locations = [
  {id:'The_Storm_Tunnel',element:null,text:'Golpes velozes causam +4 de dano.'},
 ];
 export const elements = {fire:['Fogo','🔥'],water:['Água','💧'],earth:['Terra','🌿'],air:['Ar','💨']};
-export const DEFAULT_DECK={creatures:['Maxxor','Intress','Attacat','Najarin','Tangath_Toborn','Chaor'],gears:{Maxxor:'Gauntlets_of_Might',Intress:'Indigo_Sash',Attacat:'Mowercycle',Najarin:'Mind_Prism',Tangath_Toborn:'Burithean_Axe',Chaor:'Double_Edge'},mugics:['Harmonics_of_Water','Dischord_of_Flame','Song_of_Resurgence'],location:'Riverlands'};
+export const DEFAULT_DECK={creatures:['Maxxor','Intress','Attacat','Najarin','Tangath_Toborn','Chaor'],gears:{Maxxor:'Gauntlets_of_Might',Intress:'Indigo_Sash',Attacat:'Mowercycle',Najarin:'Mind_Prism',Tangath_Toborn:'Burithean_Axe',Chaor:'Double_Edge'},mugics:['Harmonics_of_Water','Dischord_of_Flame','Song_of_Resurgence'],locations:['Riverlands','Gloomuck_Swamp','Stronghold_Morn','The_Pits','The_Storm_Tunnel']};
 export const getCreature=id=>creatures.find(x=>x.id===id);
 export const getGear=id=>gears.find(x=>x.id===id);
 export const getMugic=id=>mugics.find(x=>x.id===id);
