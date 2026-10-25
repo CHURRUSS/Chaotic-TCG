@@ -1,6 +1,6 @@
 import {creatures,gears,mugics,locations,formatName,art,elements,DEFAULT_DECK,getCreature,getGear,getMugic,getLocation} from './data.js';
 const root=document.getElementById('app');
-const DECK_KEY='chaotic-tcg-deck-alpha-v05', BATTLE_KEY='chaotic-tcg-battle-alpha-1', STATS_KEY='chaotic-tcg-stats-alpha-1';
+const DECK_KEY='chaotic-tcg-deck-alpha-v06', BATTLE_KEY='chaotic-tcg-battle-alpha-1', STATS_KEY='chaotic-tcg-stats-alpha-1';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const getSave=(k,fallback)=>{try{const a=JSON.parse(localStorage.getItem(k));return a??fallback}catch{return fallback}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(err){console.warn('Armazenamento indisponível',err)}};
@@ -50,7 +50,7 @@ const saveDeck=()=>store(DECK_KEY,deck);
 const saveBattle=()=>{if(battle)store(BATTLE_KEY,battle)};
 const eraseBattle=()=>{battle=null;localStorage.removeItem(BATTLE_KEY)};
 function toast(msg){document.querySelector('.toast')?.remove();clearTimeout(toastTimer);const n=document.createElement('div');n.className='toast';n.role='status';n.textContent=msg;document.body.append(n);toastTimer=setTimeout(()=>n.remove(),2700)}
-function header(){return `<header class="site-head"><img class="brand-logo" src="assets/ui/logo.webp" alt="Chaotic"><span class="brand-copy"><strong>CHAOTIC TCG</strong><small>BATTLEDROME · ROLETAS 0.5</small></span><div class="header-actions"><button class="btn sm ghost sound-toggle" data-act="soundToggle" aria-label="Alternar efeitos sonoros" aria-pressed="${soundEnabled}">${soundEnabled?'♪ SOM':'♪ MUDO'}</button><button class="btn sm ghost" data-act="home">⌂ Início</button><button class="btn sm ${page==='deck'?'primary':'ghost'}" data-act="deck">▦ Minha equipe</button>${battle?`<button class="btn sm ${page==='battle'?'primary':'ghost'}" data-act="resume">⚔ Arena</button>`:''}</div></header>`}
+function header(){return `<header class="site-head"><img class="brand-logo" src="assets/ui/logo.webp" alt="Chaotic"><span class="brand-copy"><strong>CHAOTIC TCG</strong><small>BATTLEDROME · SELEÇÃO 0.6</small></span><div class="header-actions"><button class="btn sm ghost sound-toggle" data-act="soundToggle" aria-label="Alternar efeitos sonoros" aria-pressed="${soundEnabled}">${soundEnabled?'♪ SOM':'♪ MUDO'}</button><button class="btn sm ghost" data-act="home">⌂ Início</button><button class="btn sm ${page==='deck'?'primary':'ghost'}" data-act="deck">▦ Minha equipe</button>${battle?`<button class="btn sm ${page==='battle'?'primary':'ghost'}" data-act="resume">⚔ Arena</button>`:''}</div></header>`}
 function home(){return `<div class="bd-page bd-home"><div class="bd-kicker">INTERFACE DE PERIM <span>▸</span> BATTLEDROME</div><section class="bd-board bd-home-stage">
   ${bdBoardDecor('home')}
   <div class="bd-home-copy"><span class="bd-tag">SISTEMA DE BATALHA INICIADO</span><h1>ENTRE NO<br><em>BATTLEDROME</em></h1><p>Forme seu exército. Escolha os locais. Revele o cenário e decida quem enfrentará quem.</p><div class="bd-buttons"><button class="bd-btn gold" data-act="deck">PREPARAR EXÉRCITO</button><button class="bd-btn" data-act="${battle?'resume':'start'}">${battle?'CONTINUAR BATALHA':'INICIAR BATALHA'}</button></div></div>
@@ -104,16 +104,30 @@ function bdLocationSpinner(){const ids=battle?.locations?.length?battle.location
  const reel=Array.from({length:4},()=>ids.map(id=>`<div class="bd-location-reel-card"><img src="${photo('location',id)}" alt=""><span>${safe(label(id))}</span></div>`).join('')).join('');
  return `<div class="bd-location-randomizer"><div class="bd-location-title">LOCALIZADOR · SORTEIO DO CENÁRIO</div><div class="bd-location-viewport"><div class="bd-location-reel-track ${locationSpinning?'spinning':''}">${reel}</div><span class="bd-location-pointer"></span></div><p>${locationSpinning?'LOCALIZANDO CENÁRIO…':'O jogador atacante gira a roleta para revelar o próximo local.'}</p><button class="bd-btn gold bd-spin-button" data-act="spinLocation" ${locationSpinning?'disabled':''}>${locationSpinning?'◌ GIRANDO…':'↔ GIRAR ROLETA DE LOCAIS'}</button></div>`;
 }
+function bdScanner(){
+ const config=WHEEL_TYPES[wheelType]||WHEEL_TYPES.creature;
+ const card=config.list[wheelIndex[wheelType]%config.list.length];
+ const colors={creature:'CRIATURA',gear:'EQUIPAMENTO',mugic:'MUGIC'};
+ const stat=wheelType==='creature'?`<span>ENERGIA <b>${card.hp}</b></span><span>⚔ ${card.power}</span><span>✦ ${card.wisdom}</span><span>⚡ ${card.speed}</span>`:wheelType==='gear'?`<span>${safe(card.text||'Equipamento')}</span>`:`<span>${safe(card.text||'Magia de Perim')}</span>`;
+ return `<aside class="bd-prep-scanner" aria-label="Leitor de cartas com roletas como no CAPX">
+    <div class="bd-scan-screen"><span class="bd-scan-heading">◈ LEITOR DE CARTAS · ${colors[wheelType]}</span>
+     <button class="bd-scan-feature" data-act="wheelApply" data-wheel-kind="${wheelType}" data-wheel-id="${card.id}" aria-label="Arrastar ${safe(label(card.id))} para o painel"><img draggable="false" src="${photo(wheelType,card.id)}" alt="${safe(label(card.id))}"></button>
+     <div class="bd-scan-details"><strong>${safe(label(card.id))}</strong><div class="bd-scan-stats">${stat}</div></div>
+    </div>
+    ${bdWheel()}
+    <span class="bd-scanner-hint">↕ Gire as roletas · arraste a carta central ou a carta ampliada →</span>
+   </aside>`;
+}
 function bdMugicSlots(){return `<div class="bd-drop-row" aria-label="Três espaços de Mugic"><span>PORTA-MUGIC</span><div class="bd-mugic-targets">${Array.from({length:3},(_,i)=>{const id=deck.mugics[i];return `<button class="bd-mugic-target ${mugicSelection===i?'selected':''}" data-drop-kind="mugic" data-drop-i="${i}" data-act="mugicSlot" data-i="${i}" aria-label="Mugic ${i+1}${id?': '+safe(label(id)):': vazio'}">${id?`<img src="${photo('mugic',id)}" alt="${safe(label(id))}">`:`<b>✦</b>`}<small>${i+1}</small></button>`}).join('')}</div><small>Arraste cartas da roleta para equipar · toque no espaço para selecioná-lo</small></div>`}
-function deckPage(){const selected=deck.creatures[slotSelection];return `<div class="bd-page bd-prep-page"><div class="bd-kicker">01 / PREPARAÇÃO <span>▸</span> ARRASTE CARTAS DAS ROLETAS VERTICAIS</div>
- <section class="bd-board bd-preparation" aria-label="Painel de montagem BattleDrome">${bdBoardDecor('prep')}
- <div class="bd-board-head"><span>SEU EXÉRCITO <b>${creatureCount()}/6</b></span><span>EQUIPE INIMIGA · IA</span></div>
- ${bdSquad(deck.creatures,'left','prep')}${bdSquad([], 'right','home')}
+function deckPage(){const selected=deck.creatures[slotSelection];return `<div class="bd-page bd-prep-page bd-capx-prep"><div class="bd-kicker">01 / PREPARAÇÃO <span>▸</span> GIRE · SELECIONE · ARRASTE</div>
+ <section class="bd-board bd-preparation" aria-label="Painel de montagem do CAPX: apenas seu exército">${bdBoardDecor('prep')}
+ ${bdScanner()}
+ <div class="bd-board-head"><span>SEU EXÉRCITO <b>${creatureCount()}/6</b> · POSICIONE AS CARTAS</span></div>
+ ${bdSquad(deck.creatures,'left','prep')}
  ${bdLocationHand(deck.locations,true)}
  ${bdMugicSlots()}
  </section>
- ${bdWheel()}
- <div class="bd-command-row bd-prep-actions"><div><strong>${creatureCount()}/6 CRIATURAS · ${mugicCount()}/3 MUGICS · ${deck.locations.length} LOCAIS</strong><small>${selected?safe(label(selected))+' selecionado · ':''}Arraste para montar ou toque no espaço e depois na carta.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="clearDeck">LIMPAR</button>${selected?`<button class="bd-btn muted" data-act="removeCreatureSlot">RETIRAR</button>`:''}<button class="bd-btn gold" data-act="start" ${creatureCount()!==6||!deck.locations.length?'disabled':''}>BATALHAR ▸</button></div></div>
+ <div class="bd-command-row bd-prep-actions"><div><strong>${creatureCount()}/6 CRIATURAS · ${mugicCount()}/3 MUGICS · ${deck.locations.length} LOCAIS</strong><small>${selected?safe(label(selected))+' · ':''}No celular: toque no espaço e depois na carta do leitor.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="clearDeck">LIMPAR</button>${selected?`<button class="bd-btn muted" data-act="removeCreatureSlot">RETIRAR</button>`:''}<button class="bd-btn gold" data-act="start" ${creatureCount()!==6||!deck.locations.length?'disabled':''}>INICIAR PARTIDA ▸</button></div></div>
  </div>`;}
 
 function createCombatant(id,gear){const def=getCreature(id);const bonus=getGear(gear);const base={id,hp:def.hp,maxHp:def.hp,power:def.power,speed:def.speed,wisdom:def.wisdom,shield:0,element:def.element,tribe:def.tribe,gear:gear||null};if(bonus){if(bonus.stat==='hp'){base.hp+=bonus.bonus;base.maxHp+=bonus.bonus}else base[bonus.stat]+=bonus.bonus;}return base}
@@ -273,7 +287,7 @@ function clickAction(ev){const el=ev.target.closest('[data-act]');if(!el)return;
  if(a==='home'){setPage('home');return}
  if(a==='deck'){setPage('deck');return}
  if(a==='resume'){if(battle){setPage(battle.winner?'result':'battle')}return}
- if(a==='slot'){slotSelection=i;wheelType='creature';modal=null;render();return}
+ if(a==='slot'){slotSelection=i;modal=null;render();return}
  if(a==='mugicSlot'){mugicSelection=i;wheelType='mugic';render();return}
  if(a==='wheelTab'){wheelType=id;render();return}
  if(a==='wheelTurn'){wheelTurn(Number(el.dataset.dir),id);return}
@@ -306,7 +320,7 @@ let draggingCard=null,suppressAfterDrag=false;
 function suppressClick(){suppressAfterDrag=true;setTimeout(()=>{suppressAfterDrag=false},120)}
 function cleanDrag(){draggingCard?.ghost?.remove();draggingCard=null;document.body.classList.remove('bd-dragging');document.querySelectorAll('.bd-drop-over').forEach(el=>el.classList.remove('bd-drop-over'))}
 document.addEventListener('pointerdown',ev=>{
- const el=ev.target.closest('.bd-vreel-item.current');if(!el||page!=='deck'||ev.button>0)return;
+ const el=ev.target.closest('.bd-vreel-item.current, .bd-scan-feature');if(!el||page!=='deck'||ev.button>0)return;
  draggingCard={kind:el.dataset.wheelKind,id:el.dataset.wheelId,x:ev.clientX,y:ev.clientY,pointerId:ev.pointerId,ghost:null,track:el.closest('.bd-vreel-window')};
 },true);
 document.addEventListener('pointermove',ev=>{
