@@ -1,13 +1,13 @@
 import {creatures,gears,mugics,locations,formatName,art,elements,DEFAULT_DECK,getCreature,getGear,getMugic,getLocation} from './data.js';
 const root=document.getElementById('app');
-const DECK_KEY='chaotic-tcg-deck-alpha-1', BATTLE_KEY='chaotic-tcg-battle-alpha-1', STATS_KEY='chaotic-tcg-stats-alpha-1';
+const DECK_KEY='chaotic-tcg-deck-alpha-v05', BATTLE_KEY='chaotic-tcg-battle-alpha-1', STATS_KEY='chaotic-tcg-stats-alpha-1';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const getSave=(k,fallback)=>{try{const a=JSON.parse(localStorage.getItem(k));return a??fallback}catch{return fallback}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(err){console.warn('Armazenamento indisponível',err)}};
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label=id=>formatName(id||'');
 const photo=(kind,id)=>art(kind,id);
-function normalizeDeck(o){let d=clone(DEFAULT_DECK);
+function normalizeDeck(o){let d={creatures:Array(6).fill(null),gears:{},mugics:Array(3).fill(null),locations:[]};
  if(o&&typeof o==='object'){
   if(Array.isArray(o.creatures)){const seen=new Set();d.creatures=Array.from({length:6},(_,i)=>{const id=o.creatures[i];if(!getCreature(id)||seen.has(id))return null;seen.add(id);return id;});}
   if(o.gears&&typeof o.gears==='object'){d.gears={};for(const [c,g] of Object.entries(o.gears))if(getCreature(c)&&getGear(g))d.gears[c]=g;}
@@ -22,7 +22,23 @@ if(!battle||!Array.isArray(battle.hero)||!Array.isArray(battle.foe)||!Array.isAr
 // Migra batalhas antigas para o modo de preparação, sem apagar vida nem resultados.
 if(battle&&!battle.winner&&!battle.phase){battle.phase='selection';battle.turn='select';battle.locationQueue=[];battle.locations=[battle.location||'Riverlands'];battle.duel=1;}
 let stats=getSave(STATS_KEY,{wins:0,losses:0});
-let page='deck',tab='creatures',slotSelection=0,mugicSelection=0,wheelType='creature',wheelIndex={creature:4,gear:0,mugic:0},modal=null,toastTimer=null,aiTimer=null;
+let page='deck',tab='creatures',slotSelection=0,mugicSelection=0,wheelType='creature',wheelIndex={creature:4,gear:0,mugic:0},wheelMotionKind=null,wheelMotionDir=0,modal=null,toastTimer=null,aiTimer=null,locationSpinning=false,locationSpinTimer=null,soundEnabled=getSave('chaotic-sound-v05',true),soundCtx=null;
+
+// Sons eletrônicos originais gerados por Web Audio; nenhum arquivo sonoro do desenho é copiado.
+function audioPulse(kind='tick'){
+ if(!soundEnabled)return;
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  if(!soundCtx)soundCtx=new AC();
+  if(soundCtx.state==='suspended')soundCtx.resume().catch(()=>{});
+  const now=soundCtx.currentTime;
+  const tones={tick:[460,610,.045,.035,'square'],drop:[520,850,.14,.065,'sine'],reveal:[190,770,.35,.095,'sawtooth'],click:[550,650,.06,.035,'sine'],combat:[180,80,.22,.055,'triangle']};
+  const [a,b,dur,vol,wave]=tones[kind]||tones.tick;
+  const o=soundCtx.createOscillator(),g=soundCtx.createGain();o.type=wave;o.frequency.setValueAtTime(a,now);o.frequency.exponentialRampToValueAtTime(Math.max(1,b),now+dur);
+  g.gain.setValueAtTime(.001,now);g.gain.exponentialRampToValueAtTime(vol,now+.012);g.gain.exponentialRampToValueAtTime(.001,now+dur);
+  o.connect(g);g.connect(soundCtx.destination);o.start(now);o.stop(now+dur+.01);
+ }catch(e){console.debug('Áudio indisponível',e)}
+}
 const creatureCount=()=>deck.creatures.filter(Boolean).length;
 const mugicCount=()=>deck.mugics.filter(Boolean).length;
 const FORM_LANES=[1,.5,1.5,0,1,2], FORM_DEPTH=[2,1,1,0,0,0];
@@ -34,7 +50,7 @@ const saveDeck=()=>store(DECK_KEY,deck);
 const saveBattle=()=>{if(battle)store(BATTLE_KEY,battle)};
 const eraseBattle=()=>{battle=null;localStorage.removeItem(BATTLE_KEY)};
 function toast(msg){document.querySelector('.toast')?.remove();clearTimeout(toastTimer);const n=document.createElement('div');n.className='toast';n.role='status';n.textContent=msg;document.body.append(n);toastTimer=setTimeout(()=>n.remove(),2700)}
-function header(){return `<header class="site-head"><img class="brand-logo" src="assets/ui/logo.webp" alt="Chaotic"><span class="brand-copy"><strong>CHAOTIC TCG</strong><small>BATTLEDROME · ROLETAS 0.4</small></span><div class="header-actions"><button class="btn sm ghost" data-act="home">⌂ Início</button><button class="btn sm ${page==='deck'?'primary':'ghost'}" data-act="deck">▦ Minha equipe</button>${battle?`<button class="btn sm ${page==='battle'?'primary':'ghost'}" data-act="resume">⚔ Arena</button>`:''}</div></header>`}
+function header(){return `<header class="site-head"><img class="brand-logo" src="assets/ui/logo.webp" alt="Chaotic"><span class="brand-copy"><strong>CHAOTIC TCG</strong><small>BATTLEDROME · ROLETAS 0.5</small></span><div class="header-actions"><button class="btn sm ghost sound-toggle" data-act="soundToggle" aria-label="Alternar efeitos sonoros" aria-pressed="${soundEnabled}">${soundEnabled?'♪ SOM':'♪ MUDO'}</button><button class="btn sm ghost" data-act="home">⌂ Início</button><button class="btn sm ${page==='deck'?'primary':'ghost'}" data-act="deck">▦ Minha equipe</button>${battle?`<button class="btn sm ${page==='battle'?'primary':'ghost'}" data-act="resume">⚔ Arena</button>`:''}</div></header>`}
 function home(){return `<div class="bd-page bd-home"><div class="bd-kicker">INTERFACE DE PERIM <span>▸</span> BATTLEDROME</div><section class="bd-board bd-home-stage">
   ${bdBoardDecor('home')}
   <div class="bd-home-copy"><span class="bd-tag">SISTEMA DE BATALHA INICIADO</span><h1>ENTRE NO<br><em>BATTLEDROME</em></h1><p>Forme seu exército. Escolha os locais. Revele o cenário e decida quem enfrentará quem.</p><div class="bd-buttons"><button class="bd-btn gold" data-act="deck">PREPARAR EXÉRCITO</button><button class="bd-btn" data-act="${battle?'resume':'start'}">${battle?'CONTINUAR BATALHA':'INICIAR BATALHA'}</button></div></div>
@@ -42,7 +58,7 @@ function home(){return `<div class="bd-page bd-home"><div class="bd-kicker">INTE
   ${bdLocationHand(deck.locations, false)}
  </section><p class="bd-hint">ALPHA NÃO OFICIAL · Arte extraída do CAPX fornecido · Mecânicas experimentais por turnos</p></div>`;}
 function slotCard(id,i){return `<button type="button" class="squad-slot ${slotSelection===i?'active':''}" data-act="slot" data-i="${i}" aria-label="Posição ${i+1}: ${id?label(id):'vazia'}">${id?`<img src="${photo('creature',id)}" alt=""><span class="number">0${i+1}</span><strong>${safe(label(id))}</strong>${deck.gears[id]?'<span class="gear-dot">⚙</span>':''}`:`<span class="empty"><b>＋</b><br>Posição ${i+1}</span>`}</button>`}
-function sideDeck(){const selected=deck.creatures[slotSelection];return `<section class="panel panel-pad"><div class="section-head"><div><h2>Meu exército</h2><p>Selecione uma posição, depois escolha uma criatura.</p></div><span class="pill">${deck.creatures.length}/6</span></div><div class="squad-grid show-formation">${Array.from({length:6},(_,i)=>slotCard(deck.creatures[i],i)).join('')}</div><div class="deck-progress"><span><b>${deck.creatures.length}/6</b> criaturas</span><span>·</span><span><b>${deck.mugics.length}/3</b> Mugics</span><span>·</span><span><b>${deck.locations.length}/${locations.length}</b> locais</span><span>·</span><span><b>${Object.keys(deck.gears).filter(x=>deck.creatures.includes(x)).length}</b> equipadas</span></div>${selected?`<div class="deck-control"><b>Posição ${slotSelection+1}: ${safe(label(selected))}</b><p>${safe(getCreature(selected).flavor)}</p><div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="gearModal">⚙ ${deck.gears[selected]?label(deck.gears[selected]):'Equipar'}</button><button class="btn sm warn" data-act="removeCreature" data-id="${selected}">× Remover</button></div></div>`:`<div class="deck-control"><b>Posição ${slotSelection+1} vazia</b><p>Escolha uma criatura na lista ao lado para preenchê-la.</p></div>`}<div class="deck-control"><b>Mugics preparados</b><div class="mugic-list" style="margin-top:9px">${deck.mugics.map(id=>`<div class="mugic-row"><span>🎵 ${safe(label(id))}</span><button class="btn sm ghost" data-act="toggleMugic" data-id="${id}" aria-label="Remover ${label(id)}">×</button></div>`).join('')||'<p class="muted">Nenhum Mugic selecionado.</p>'}</div></div><div class="deck-control"><b>Deck de locais · sorteio automático</b><p>${deck.locations.length?deck.locations.map(x=>safe(label(x))).join(' • '):'Nenhum local selecionado. Marque pelo menos um.'}</p><p class="hint-line">O jogo embaralha os locais escolhidos e revela um a cada confronto, antes de você escolher quem enfrenta quem.</p></div><button class="btn primary wide" style="margin-top:14px" data-act="start" ${deck.creatures.length!==6||!deck.locations.length?'disabled':''}>⚔ Entrar na arena com esta equipe</button><div class="deck-preset" style="margin-top:10px"><button class="btn sm ghost" data-act="preset">↺ Restaurar equipe inicial</button><button class="btn sm ghost" data-act="clearDeck">Limpar equipe</button></div></section>`}
+function sideDeck(){const selected=deck.creatures[slotSelection];return `<section class="panel panel-pad"><div class="section-head"><div><h2>Meu exército</h2><p>Selecione uma posição, depois escolha uma criatura.</p></div><span class="pill">${creatureCount()}/6</span></div><div class="squad-grid show-formation">${Array.from({length:6},(_,i)=>slotCard(deck.creatures[i],i)).join('')}</div><div class="deck-progress"><span><b>${deck.creatures.length}/6</b> criaturas</span><span>·</span><span><b>${mugicCount()}/3</b> Mugics</span><span>·</span><span><b>${deck.locations.length}/${locations.length}</b> locais</span><span>·</span><span><b>${Object.keys(deck.gears).filter(x=>deck.creatures.includes(x)).length}</b> equipadas</span></div>${selected?`<div class="deck-control"><b>Posição ${slotSelection+1}: ${safe(label(selected))}</b><p>${safe(getCreature(selected).flavor)}</p><div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="gearModal">⚙ ${deck.gears[selected]?label(deck.gears[selected]):'Equipar'}</button><button class="btn sm warn" data-act="removeCreature" data-id="${selected}">× Remover</button></div></div>`:`<div class="deck-control"><b>Posição ${slotSelection+1} vazia</b><p>Escolha uma criatura na lista ao lado para preenchê-la.</p></div>`}<div class="deck-control"><b>Mugics preparados</b><div class="mugic-list" style="margin-top:9px">${deck.mugics.map(id=>`<div class="mugic-row"><span>🎵 ${safe(label(id))}</span><button class="btn sm ghost" data-act="toggleMugic" data-id="${id}" aria-label="Remover ${label(id)}">×</button></div>`).join('')||'<p class="muted">Nenhum Mugic selecionado.</p>'}</div></div><div class="deck-control"><b>Deck de locais · sorteio automático</b><p>${deck.locations.length?deck.locations.map(x=>safe(label(x))).join(' • '):'Nenhum local selecionado. Marque pelo menos um.'}</p><p class="hint-line">O jogo embaralha os locais escolhidos e revela um a cada confronto, antes de você escolher quem enfrenta quem.</p></div><button class="btn primary wide" style="margin-top:14px" data-act="start" ${deck.creatures.length!==6||!deck.locations.length?'disabled':''}>⚔ Entrar na arena com esta equipe</button><div class="deck-preset" style="margin-top:10px"><button class="btn sm ghost" data-act="preset">↺ Restaurar equipe inicial</button><button class="btn sm ghost" data-act="clearDeck">Limpar equipe</button></div></section>`}
 function catalogCard(kind,obj){let chosen=false,description='',act='',button='Adicionar',cls='';
  if(kind==='creature'){chosen=deck.creatures.includes(obj.id);description=`${obj.tribe==='overworld'?'OverWorld':'UnderWorld'} · ${elements[obj.element][1]} ${elements[obj.element][0]} · Vida ${obj.hp}`;act='chooseCreature';button=chosen?'✓ Selecionado':'＋ Selecionar'}
  if(kind==='gear'){chosen=Boolean(deck.creatures[slotSelection]&&deck.gears[deck.creatures[slotSelection]]===obj.id);description=obj.text;act='chooseGear';button=chosen?'✓ Equipado':'⚙ Equipar'}
@@ -65,7 +81,7 @@ function bdSquad(cards,side,mode='prep'){
  const invalid=mode==='selection'&&(!allowed.includes(i)||dead);
  const act=mode==='prep'?'slot':mode==='selection'?'pickFighter':'';
  const attr=act?`data-act="${act}" data-i="${i}"${mode==='selection'?` data-side="${side==='left'?'hero':'foe'}"`:''}`:'';
- const drag=mode==='prep'?`data-drop-kind="${wheelType==='gear'?'gear':'creature'}" data-drop-i="${i}"`:'';
+ const drag=mode==='prep'?`data-drop-kind="creature" data-drop-i="${i}"`:'';
  const gearMark=mode==='prep'&&id&&deck.gears[id]?`<span class="bd-slot-gear">⚙</span>`:'';
  return `<button type="button" class="bd-unit ${positions[i]} ${active?'chosen':''} ${dead?'gone':''} ${!id?'unfilled':''} ${invalid?'blocked':''}" ${attr} ${drag} ${mode==='duel'||invalid?'disabled':''} aria-label="${side==='left'?'Sua equipe':'Equipe rival'}, posição ${i+1}${id?': '+safe(label(id)):''}${invalid?' (bloqueada)':''}"><span class="bd-card-portrait">${id?`<img src="${photo('creature',id)}" alt="${safe(label(id))}">`:bdCardBack()}</span><span class="bd-unit-number">0${i+1}</span>${gearMark}${item&&typeof item==='object'?`<span class="bd-life" style="--life:${Math.max(0,item.hp/item.maxHp*100)}%"></span>`:''}</button>`;
  }).join('')}</div>`
@@ -75,23 +91,29 @@ function bdLocationHand(ids=[],interactive=false,activeId=null){
  return `<div class="bd-location-hand" aria-label="Baralho de locais"><span class="bd-hand-label">LOCAIS · ${ids.length}/5</span><div class="bd-hand-cards">${locations.map((loc,i)=>{const selected=ids.includes(loc.id);return `<button class="bd-location-card loc-${i+1} ${selected?'on':'off'} ${activeId===loc.id?'current':''}" data-act="${interactive?'chooseLocation':'noop'}" data-id="${loc.id}" ${!interactive?'disabled':''} aria-pressed="${selected}" title="${safe(label(loc.id))}"><img src="${photo('location',loc.id)}" alt="${safe(label(loc.id))}"><small>${safe(label(loc.id))}</small></button>`}).join('')}</div></div>`;
 }
 const WHEEL_TYPES={creature:{list:creatures,title:'CRIATURAS',help:'Arraste uma criatura da roleta para um dos seis espaços.'},gear:{list:gears,title:'EQUIPAMENTOS',help:'Arraste o equipamento para cima de uma criatura já posicionada.'},mugic:{list:mugics,title:'MUGIC',help:'Arraste o Mugic para um dos três espaços de magia.'}};
-function wheelCard(kind,index,role){const list=WHEEL_TYPES[kind].list;const o=list[(index+list.length)%list.length];return `<button type="button" class="bd-wheel-item ${role}" data-wheel-kind="${kind}" data-wheel-id="${o.id}" data-act="wheelApply" ${role!=='current'?'tabindex="-1"':''} aria-label="${role==='current'?'Arraste ou toque para usar':'Carta vizinha'} ${safe(label(o.id))}"><img draggable="false" src="${photo(kind,o.id)}" alt="${safe(label(o.id))}"><span>${safe(label(o.id))}</span></button>`;}
-function bdWheel(){const def=WHEEL_TYPES[wheelType],idx=wheelIndex[wheelType],list=def.list;
- return `<section class="bd-wheel-station" aria-label="Roleta de cartas"><div class="bd-wheel-tabs">${Object.entries(WHEEL_TYPES).map(([key,v])=>`<button class="bd-wheel-tab ${wheelType===key?'active':''}" data-act="wheelTab" data-id="${key}">${v.title}</button>`).join('')}</div>
- <div class="bd-wheel-content"><button class="bd-wheel-arrow" data-act="wheelTurn" data-dir="-1" aria-label="Carta anterior">‹</button><div class="bd-wheel-track">${wheelCard(wheelType,idx-1,'prev')}${wheelCard(wheelType,idx,'current')}${wheelCard(wheelType,idx+1,'next')}</div><button class="bd-wheel-arrow" data-act="wheelTurn" data-dir="1" aria-label="Próxima carta">›</button></div>
- <div class="bd-wheel-guide"><strong>${safe(label(list[idx%list.length].id))}</strong><small>${def.help} Toque na carta para aplicar ao espaço selecionado.</small></div></section>`;
+function wheelCard(kind,index,role){const list=WHEEL_TYPES[kind].list;const o=list[(index+list.length)%list.length];return `<button type="button" class="bd-vreel-item ${role}" data-wheel-kind="${kind}" data-wheel-id="${o.id}" data-act="wheelApply" ${role!=='current'?'tabindex="-1"':''} aria-label="${safe(label(o.id))}"><img draggable="false" src="${photo(kind,o.id)}" alt="${safe(label(o.id))}"><span>${safe(label(o.id))}</span></button>`;}
+function bdReel(kind){const def=WHEEL_TYPES[kind],idx=wheelIndex[kind],count=def.list.length;
+ return `<section class="bd-vreel ${wheelMotionKind===kind?(wheelMotionDir>0?'spin-up':'spin-down'):''}" data-reel-kind="${kind}" aria-label="Roleta vertical de ${def.title}"><div class="bd-vreel-title">${kind==='creature'?'◈':kind==='gear'?'⚙':'♫'} ${def.title}</div>
+  <button class="bd-vreel-arrow" data-act="wheelTurn" data-id="${kind}" data-dir="-1" aria-label="Anterior na roleta ${def.title}">⌃</button>
+  <div class="bd-vreel-window" data-reel="${kind}"><div class="bd-vreel-track">${wheelCard(kind,idx-1,'prev')}${wheelCard(kind,idx,'current')}${wheelCard(kind,idx+1,'next')}</div></div>
+  <button class="bd-vreel-arrow" data-act="wheelTurn" data-id="${kind}" data-dir="1" aria-label="Próxima na roleta ${def.title}">⌄</button>
+  <div class="bd-vreel-name">${safe(label(def.list[idx%count].id))}</div></section>`;
+}
+function bdWheel(){return `<div class="bd-wheel-station bd-vertical-station" aria-label="Três roletas verticais independentes">${['creature','gear','mugic'].map(bdReel).join('')}<div class="bd-vreel-help">↕ Deslize na vertical para girar · arraste a carta central para a formação, criatura ou Mugic</div></div>`;}
+function bdLocationSpinner(){const ids=battle?.locations?.length?battle.locations:locations.map(l=>l.id);
+ const reel=Array.from({length:4},()=>ids.map(id=>`<div class="bd-location-reel-card"><img src="${photo('location',id)}" alt=""><span>${safe(label(id))}</span></div>`).join('')).join('');
+ return `<div class="bd-location-randomizer"><div class="bd-location-title">LOCALIZADOR · SORTEIO DO CENÁRIO</div><div class="bd-location-viewport"><div class="bd-location-reel-track ${locationSpinning?'spinning':''}">${reel}</div><span class="bd-location-pointer"></span></div><p>${locationSpinning?'LOCALIZANDO CENÁRIO…':'O jogador atacante gira a roleta para revelar o próximo local.'}</p><button class="bd-btn gold bd-spin-button" data-act="spinLocation" ${locationSpinning?'disabled':''}>${locationSpinning?'◌ GIRANDO…':'↔ GIRAR ROLETA DE LOCAIS'}</button></div>`;
 }
 function bdMugicSlots(){return `<div class="bd-drop-row" aria-label="Três espaços de Mugic"><span>PORTA-MUGIC</span><div class="bd-mugic-targets">${Array.from({length:3},(_,i)=>{const id=deck.mugics[i];return `<button class="bd-mugic-target ${mugicSelection===i?'selected':''}" data-drop-kind="mugic" data-drop-i="${i}" data-act="mugicSlot" data-i="${i}" aria-label="Mugic ${i+1}${id?': '+safe(label(id)):': vazio'}">${id?`<img src="${photo('mugic',id)}" alt="${safe(label(id))}">`:`<b>✦</b>`}<small>${i+1}</small></button>`}).join('')}</div><small>Arraste cartas da roleta para equipar · toque no espaço para selecioná-lo</small></div>`}
-function deckPage(){const selected=deck.creatures[slotSelection];return `<div class="bd-page"><div class="bd-kicker">01 / PREPARAÇÃO <span>▸</span> ROLETAS E FORMAÇÃO</div>
+function deckPage(){const selected=deck.creatures[slotSelection];return `<div class="bd-page bd-prep-page"><div class="bd-kicker">01 / PREPARAÇÃO <span>▸</span> ARRASTE CARTAS DAS ROLETAS VERTICAIS</div>
  <section class="bd-board bd-preparation" aria-label="Painel de montagem BattleDrome">${bdBoardDecor('prep')}
- <div class="bd-board-head"><span>SEU EXÉRCITO <b>${creatureCount()}/6</b></span><span>ADVERSÁRIO · IA</span></div>
+ <div class="bd-board-head"><span>SEU EXÉRCITO <b>${creatureCount()}/6</b></span><span>EQUIPE INIMIGA · IA</span></div>
  ${bdSquad(deck.creatures,'left','prep')}${bdSquad([], 'right','home')}
- <div class="bd-center-box"><span class="bd-overline">TERMINAL DE SCAN</span><h2>${selected?safe(label(selected)):'POSIÇÃO '+(slotSelection+1)}</h2><p>${selected?`EQUIPAMENTO: ${deck.gears[selected]?safe(label(deck.gears[selected])):'NENHUM'}`:'Arraste uma criatura da roleta para esta posição.'}</p>${selected?`<button class="bd-mini-btn muted" data-act="removeCreatureSlot">REMOVER</button>${deck.gears[selected]?`<button class="bd-mini-btn" data-act="removeGear">RETIRAR EQUIP.</button>`:''}`:''}</div>
  ${bdLocationHand(deck.locations,true)}
- </section>
  ${bdMugicSlots()}
+ </section>
  ${bdWheel()}
- <div class="bd-command-row"><div><strong>EXÉRCITO ${creatureCount()}/6 · POSIÇÃO ${slotSelection+1}: ${selected?safe(label(selected)):'LIVRE'}</strong><small>Gire a roleta e arraste para a formação. Defina Mugics e selecione os locais na parte inferior do painel.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="preset">↻ REDEFINIR</button><button class="bd-btn gold" data-act="start" ${creatureCount()!==6||!deck.locations.length?'disabled':''}>INICIAR BATALHA ▸</button></div></div>
+ <div class="bd-command-row bd-prep-actions"><div><strong>${creatureCount()}/6 CRIATURAS · ${mugicCount()}/3 MUGICS · ${deck.locations.length} LOCAIS</strong><small>${selected?safe(label(selected))+' selecionado · ':''}Arraste para montar ou toque no espaço e depois na carta.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="clearDeck">LIMPAR</button>${selected?`<button class="bd-btn muted" data-act="removeCreatureSlot">RETIRAR</button>`:''}<button class="bd-btn gold" data-act="start" ${creatureCount()!==6||!deck.locations.length?'disabled':''}>BATALHAR ▸</button></div></div>
  </div>`;}
 
 function createCombatant(id,gear){const def=getCreature(id);const bonus=getGear(gear);const base={id,hp:def.hp,maxHp:def.hp,power:def.power,speed:def.speed,wisdom:def.wisdom,shield:0,element:def.element,tribe:def.tribe,gear:gear||null};if(bonus){if(bonus.stat==='hp'){base.hp+=bonus.bonus;base.maxHp+=bonus.bonus}else base[bonus.stat]+=bonus.bonus;}return base}
@@ -104,9 +126,9 @@ function revealLocation(){
 function selectionPhase(message){
  if(allDead(battle.foe)){finish('hero');return}
  if(allDead(battle.hero)){finish('foe');return}
- battle.phase='selection';battle.turn='select';battle.activeH=-1;battle.activeE=-1;
+ battle.phase='reveal';battle.turn='reveal';battle.activeH=-1;battle.activeE=-1;
  battle.duel=(battle.duel||0)+1;
- revealLocation();logMessage(message||'Novo local revelado. Escolha sua criatura e um adversário.');saveBattle();render();
+ battle.location=null;logMessage(message||'O local será sorteado. Gire a roleta horizontal.');saveBattle();render();
 }
 function makeBattle(){const order=shuffle(foeRoster);
  battle={hero:deck.creatures.map(id=>createCombatant(id,deck.gears[id])),foe:order.map((id,i)=>createCombatant(id,gears[(i*2+3)%gears.length].id)),activeH:-1,activeE:-1,round:1,duel:0,mugics:deck.mugics.map(id=>({id,used:false})),locations:[...deck.locations],locationQueue:[],location:null,phase:'selection',log:[],turn:'select',lastHeavy:false,winner:null};
@@ -175,6 +197,25 @@ function enemyTurn(){aiTimer=null;if(!battle||battle.turn!=='enemy'||battle.winn
 function fighter(o,side){return `<div class="fighter ${side==='enemy'?'enemy':''}"><img class="card-img" src="${photo('creature',o.id)}" alt="${safe(label(o.id))}"><div class="fighter-label">${safe(label(o.id))}</div><div class="hp-track" aria-label="Vida de ${label(o.id)}"><i style="width:${Math.max(0,Math.min(100,o.hp/o.maxHp*100))}%"></i></div><div class="hp-value">${o.hp} / ${o.maxHp} VIDA ${o.shield?' · 🛡 '+o.shield:''}</div><div class="fighter-stats"><span>⚔ ${o.power}</span><span>⚡ ${o.speed}</span><span>✦ ${o.wisdom}</span><span>${elements[o.element][1]}</span></div></div>`}
 function lineupItem(o,i){return `<button class="lineup-btn ${i===battle.activeH?'current':''} ${o.hp<=0?'dead':''}" data-act="switch" data-i="${i}" title="${safe(label(o.id))} · ${o.hp}/${o.maxHp}" ${o.hp<=0||battle.phase!=='selection'||pending()?'disabled':''}><img src="${photo('creature',o.id)}" alt="${safe(label(o.id))}"><span>${o.hp}/${o.maxHp}</span></button>`}
 function pickCard(o,i,side){const active=battle[side==='hero'?'activeH':'activeE']===i;return `<button type="button" class="pick-creature ${active?'selected':''} ${o.hp<=0?'defeated':''}" data-act="pickFighter" data-side="${side}" data-i="${i}" ${o.hp<=0?'disabled':''} aria-pressed="${active}"><img src="${photo('creature',o.id)}" alt="${safe(label(o.id))}"><span>${safe(label(o.id))}</span><small>${o.hp} / ${o.maxHp} vida</small></button>`;}
+function spinLocation(){
+ if(!battle||battle.phase!=='reveal'||locationSpinning)return;
+ locationSpinning=true;audioPulse('reveal');render();
+ // Animação real da faixa de locais, seguida do resultado gerado pelo baralho.
+ let ticks=0;
+ locationSpinTimer=setInterval(()=>{
+  if(!battle||battle.phase!=='reveal'){clearInterval(locationSpinTimer);locationSpinTimer=null;locationSpinning=false;return}
+  if(++ticks%3===0)audioPulse('tick');
+ },110);
+ setTimeout(()=>{
+  if(!battle||battle.phase!=='reveal'){clearInterval(locationSpinTimer);locationSpinTimer=null;locationSpinning=false;return}
+  clearInterval(locationSpinTimer);locationSpinTimer=null;locationSpinning=false;
+  revealLocation();battle.phase='selection';battle.turn='select';logMessage('◈ '+label(battle.location)+' revelado. Escolha atacante e alvo.');saveBattle();audioPulse('drop');render();
+ },1650);
+}
+function revealPage(){return `<div class="bd-page bd-reel-page"><div class="bd-kicker">02 / BATTLEDROME <span>▸</span> ROLETA HORIZONTAL DE LOCAIS</div><section class="bd-board bd-reveal-board">${bdBoardDecor('selection')}
+ <div class="bd-board-head"><span>SEU EXÉRCITO</span><span>EXÉRCITO ADVERSÁRIO</span></div>
+ ${bdSquad(battle.hero,'left','duel')}${bdSquad(battle.foe,'right','duel')}
+ ${bdLocationSpinner()}</section><div class="bd-command-row"><div><strong>REVELE O LOCAL</strong><small>O sorteio usa somente os locais escolhidos na preparação.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="home">VOLTAR AO MENU</button></div></div></div>`}
 function selectBattlePage(){const loc=getLocation(battle.location),h=battle.activeH>=0?getH():null,e=battle.activeE>=0?getE():null;
  return `<div class="bd-page"><div class="bd-kicker">02 / LOCAL REVELADO <span>▸</span> ESCOLHA SEU CONFRONTO</div>
  <section class="bd-board bd-selection" aria-label="Escolha do confronto">${bdBoardDecor('selection')}
@@ -184,7 +225,7 @@ function selectBattlePage(){const loc=getLocation(battle.location),h=battle.acti
  ${bdLocationHand(battle.locations,false,battle.location)}
  </section><div class="bd-command-row"><div><strong>${h?safe(label(h.id)):'SELECIONE SUA CRIATURA'} <span class="bd-vs">VS</span> ${e?safe(label(e.id)):'SELECIONE O INIMIGO'}</strong><small>Escolha uma criatura livre na frente da sua formação. Só os adversários ao alcance ficarão disponíveis.</small></div><div class="bd-command-buttons"><button class="bd-btn muted" data-act="home">SAIR</button><button class="bd-btn gold" data-act="beginDuel" ${!h||!e?'disabled':''}>ENTRAR EM COMBATE ▸</button></div></div></div>`;
 }
-function battlePage(){if(!battle)return home();if(battle.phase==='selection')return selectBattlePage();const isTurn=battle.turn==='player'&&!pending(),h=getH(),e=getE(),loc=getLocation(battle.location);
+function battlePage(){if(!battle)return home();if(battle.phase==='reveal')return revealPage();if(battle.phase==='selection')return selectBattlePage();const isTurn=battle.turn==='player'&&!pending(),h=getH(),e=getE(),loc=getLocation(battle.location);
  const attacks=[['basic','GOLPE DIRETO'],['element','ELEMENTAL'],['quick','ATAQUE VELOZ'],['guard','DEFENDER']];
  return `<div class="bd-page"><div class="bd-kicker">03 / BATTLEDROME <span>▸</span> CONFRONTO ${battle.duel} · TURNO ${battle.round}</div>
  <section class="bd-board bd-duel" aria-label="Arena de batalha">${bdBoardDecor('duel')}
@@ -206,14 +247,14 @@ function setCreatureAt(index,id){
  if(!getCreature(id)||index<0||index>5)return;
  const prevAt=deck.creatures[index];const other=deck.creatures.indexOf(id);
  if(other!==-1&&other!==index){deck.creatures[other]=prevAt||null;}else if(prevAt&&prevAt!==id)delete deck.gears[prevAt];
- deck.creatures[index]=id;slotSelection=index;saveDeck();render();toast(`${label(id)} colocado na posição ${index+1}.`);
+ deck.creatures[index]=id;slotSelection=index;saveDeck();audioPulse('drop');render();toast(`${label(id)} colocado na posição ${index+1}.`);
 }
-function setGearAt(index,id){if(!getGear(id)||index<0||index>5)return;const who=deck.creatures[index];if(!who){toast('Solte o equipamento sobre uma criatura.');return;}deck.gears[who]=id;slotSelection=index;saveDeck();render();toast(`${label(who)} equipado com ${label(id)}.`)}
-function setMugicAt(index,id){if(!getMugic(id)||index<0||index>2)return;const other=deck.mugics.indexOf(id),old=deck.mugics[index];if(other>=0&&other!==index)deck.mugics[other]=old||null;deck.mugics[index]=id;mugicSelection=index;saveDeck();render();toast(`${label(id)} preparado no espaço ${index+1}.`)}
+function setGearAt(index,id){if(!getGear(id)||index<0||index>5)return;const who=deck.creatures[index];if(!who){toast('Solte o equipamento sobre uma criatura.');return;}deck.gears[who]=id;slotSelection=index;saveDeck();audioPulse('drop');render();toast(`${label(who)} equipado com ${label(id)}.`)}
+function setMugicAt(index,id){if(!getMugic(id)||index<0||index>2)return;const other=deck.mugics.indexOf(id),old=deck.mugics[index];if(other>=0&&other!==index)deck.mugics[other]=old||null;deck.mugics[index]=id;mugicSelection=index;saveDeck();audioPulse('drop');render();toast(`${label(id)} preparado no espaço ${index+1}.`)}
 function dropCard(kind,id,index){if(kind==='creature')setCreatureAt(index,id);else if(kind==='gear')setGearAt(index,id);else if(kind==='mugic')setMugicAt(index,id)}
 function removeCreatureAt(index){const id=deck.creatures[index];if(!id)return;deck.creatures[index]=null;delete deck.gears[id];saveDeck();render();toast(`${label(id)} retirado da formação.`)}
-function wheelTurn(dir){const len=WHEEL_TYPES[wheelType].list.length;wheelIndex[wheelType]=(wheelIndex[wheelType]+dir+len)%len;render();}
-function wheelApply(id){if(wheelType==='creature')setCreatureAt(slotSelection,id);else if(wheelType==='gear')setGearAt(slotSelection,id);else setMugicAt(mugicSelection,id)}
+function wheelTurn(dir,kind=wheelType){if(!WHEEL_TYPES[kind])return;wheelType=kind;const len=WHEEL_TYPES[kind].list.length;wheelIndex[kind]=(wheelIndex[kind]+dir+len)%len;wheelMotionKind=kind;wheelMotionDir=dir;audioPulse('tick');render();}
+function wheelApply(id,kind=wheelType){if(kind==='creature')setCreatureAt(slotSelection,id);else if(kind==='gear')setGearAt(slotSelection,id);else if(kind==='mugic')setMugicAt(mugicSelection,id)}
 // Mantidos para compatibilidade com o arquivo anterior, mas a montagem agora usa as roletas.
 function chooseCreature(id){if(deck.creatures.includes(id)){removeCreatureAt(deck.creatures.indexOf(id));return;}setCreatureAt(slotSelection,id)}
 function chooseGear(id){setGearAt(slotSelection,id);modal=null}
@@ -224,6 +265,8 @@ function start(){if(creatureCount()!==6||!deck.locations.length){setPage('deck')
 }
 function clickAction(ev){const el=ev.target.closest('[data-act]');if(!el)return;
  const a=el.dataset.act,id=el.dataset.id,i=Number(el.dataset.i);
+ if(a==='soundToggle'){soundEnabled=!soundEnabled;store('chaotic-sound-v05',soundEnabled);if(soundEnabled)audioPulse('drop');render();return}
+ if(a==='spinLocation'){spinLocation();return}
  if(a==='closeBackdrop'){if(ev.target===el){modal=null;render()}return}
  if(a==='closeModal'){modal=null;render();return}
  if(a==='confirm'){const fn=modal?.accept;modal=null;fn?.();return}
@@ -233,8 +276,8 @@ function clickAction(ev){const el=ev.target.closest('[data-act]');if(!el)return;
  if(a==='slot'){slotSelection=i;wheelType='creature';modal=null;render();return}
  if(a==='mugicSlot'){mugicSelection=i;wheelType='mugic';render();return}
  if(a==='wheelTab'){wheelType=id;render();return}
- if(a==='wheelTurn'){wheelTurn(Number(el.dataset.dir));return}
- if(a==='wheelApply'){wheelApply(el.dataset.wheelId);return}
+ if(a==='wheelTurn'){wheelTurn(Number(el.dataset.dir),id);return}
+ if(a==='wheelApply'){wheelApply(el.dataset.wheelId,el.dataset.wheelKind);return}
  if(a==='removeCreatureSlot'){removeCreatureAt(slotSelection);return}
  if(a==='gearModal'){if(deck.creatures[slotSelection]){modal={type:'gear'};render()}return}
  if(a==='tab'){tab=id;render();return}
@@ -244,12 +287,12 @@ function clickAction(ev){const el=ev.target.closest('[data-act]');if(!el)return;
  if(a==='removeGear'){delete deck.gears[deck.creatures[slotSelection]];saveDeck();modal=null;render();return}
  if(a==='toggleMugic'){chooseMugic(id);return}
  if(a==='chooseLocation'){if(!getLocation(id))return;deck.locations=deck.locations.includes(id)?deck.locations.filter(x=>x!==id):[...deck.locations,id];saveDeck();render();return}
- if(a==='preset'){modal={type:'confirm',title:'Restaurar equipe inicial?',message:'Todas as escolhas atuais de equipe, equipamentos, Mugic e local serão substituídas.',accept:()=>{deck=clone(DEFAULT_DECK);slotSelection=0;saveDeck();render()}};render();return}
- if(a==='clearDeck'){modal={type:'confirm',title:'Limpar equipe?',message:'As criaturas e os equipamentos serão removidos. Os Mugics e o local serão preservados.',accept:()=>{deck.creatures=Array(6).fill(null);deck.gears={};slotSelection=0;saveDeck();render()}};render();return}
+ if(a==='preset'){modal={type:'confirm',title:'Limpar a formação?',message:'As seis posições serão esvaziadas para você preparar uma nova equipe.',accept:()=>{deck={creatures:Array(6).fill(null),gears:{},mugics:Array(3).fill(null),locations:[]};slotSelection=0;saveDeck();render()}};render();return}
+ if(a==='clearDeck'){modal={type:'confirm',title:'Esvaziar o painel?',message:'Criaturas, equipamentos, Mugics e locais serão removidos da preparação.',accept:()=>{deck={creatures:Array(6).fill(null),gears:{},mugics:Array(3).fill(null),locations:[]};slotSelection=0;mugicSelection=0;saveDeck();render()}};render();return}
  if(a==='noop'){return}
- if(a==='start'){start();return}
+ if(a==='start'){audioPulse('drop');start();return}
  if(a==='pickFighter'){chooseFighter(el.dataset.side,i);return}
- if(a==='beginDuel'){startDuel();return}
+ if(a==='beginDuel'){audioPulse('combat');startDuel();return}
  if(a==='attack'){doMove(id);return}
  if(a==='cast'){useMugic(i);return}
  if(a==='switch'){switchHero(i);return}
@@ -257,15 +300,24 @@ function clickAction(ev){const el=ev.target.closest('[data-act]');if(!el)return;
 }
 document.addEventListener('click',ev=>{if(suppressAfterDrag){suppressAfterDrag=false;ev.preventDefault();ev.stopPropagation();return;}clickAction(ev)},true);
 
-// Arrastar com mouse ou toque: captura do ponteiro sem arrastar a página inteira.
-let draggingCard=null, suppressAfterDrag=false;
+// Arrastar com mouse/toque de qualquer uma das três roletas.
+// Gesto vertical dentro do tambor = girar. Arraste além do tambor = posicionar carta.
+let draggingCard=null,suppressAfterDrag=false;
+function suppressClick(){suppressAfterDrag=true;setTimeout(()=>{suppressAfterDrag=false},120)}
+function cleanDrag(){draggingCard?.ghost?.remove();draggingCard=null;document.body.classList.remove('bd-dragging');document.querySelectorAll('.bd-drop-over').forEach(el=>el.classList.remove('bd-drop-over'))}
 document.addEventListener('pointerdown',ev=>{
- const el=ev.target.closest('.bd-wheel-item.current');if(!el||page!=='deck'||ev.button>0)return;
- draggingCard={kind:el.dataset.wheelKind,id:el.dataset.wheelId,x:ev.clientX,y:ev.clientY,pointerId:ev.pointerId,ghost:null};
+ const el=ev.target.closest('.bd-vreel-item.current');if(!el||page!=='deck'||ev.button>0)return;
+ draggingCard={kind:el.dataset.wheelKind,id:el.dataset.wheelId,x:ev.clientX,y:ev.clientY,pointerId:ev.pointerId,ghost:null,track:el.closest('.bd-vreel-window')};
 },true);
 document.addEventListener('pointermove',ev=>{
  const d=draggingCard;if(!d||ev.pointerId!==d.pointerId)return;
- if(!d.ghost){if(Math.hypot(ev.clientX-d.x,ev.clientY-d.y)<10)return;
+ const dx=ev.clientX-d.x,dy=ev.clientY-d.y;
+ if(!d.ghost){
+  if(Math.hypot(dx,dy)<14)return;
+  const r=d.track?.getBoundingClientRect();
+  const inside=r&&ev.clientX>=r.left-5&&ev.clientX<=r.right+5&&ev.clientY>=r.top-5&&ev.clientY<=r.bottom+5;
+  // Movimentos dentro da janela não arrastam a carta: o gesto serve para girar.
+  if(inside&&Math.abs(dy)>Math.abs(dx)*.7)return;
   const el=document.createElement('div');el.className='bd-drag-ghost';el.innerHTML=`<img src="${photo(d.kind,d.id)}" alt="">`;
   document.body.append(el);d.ghost=el;document.body.classList.add('bd-dragging');
  }
@@ -275,21 +327,15 @@ document.addEventListener('pointermove',ev=>{
  if(target)target.classList.add('bd-drop-over');
 },{passive:false});
 document.addEventListener('pointerup',ev=>{
- const d=draggingCard;if(!d||ev.pointerId!==d.pointerId)return;draggingCard=null;
- if(!d.ghost)return;
+ const d=draggingCard;if(!d||ev.pointerId!==d.pointerId)return;
+ const dx=ev.clientX-d.x,dy=ev.clientY-d.y;
+ if(!d.ghost){draggingCard=null;if(Math.abs(dy)>28&&Math.abs(dy)>Math.abs(dx)*.8){suppressClick();wheelTurn(dy<0?1:-1,d.kind)}return;}
  const target=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('[data-drop-kind]');
- d.ghost.remove();document.body.classList.remove('bd-dragging');
- document.querySelectorAll('.bd-drop-over').forEach(el=>el.classList.remove('bd-drop-over'));
- suppressAfterDrag=true;setTimeout(()=>{suppressAfterDrag=false},0);
- if(target && (d.kind===target.dataset.dropKind || (d.kind==='gear'&&target.dataset.dropKind==='creature'))){dropCard(d.kind,d.id,Number(target.dataset.dropI))}
- else toast(d.kind==='mugic'?'Solte o Mugic nos três espaços de magia.':'Solte a carta sobre uma posição da equipe.');
+ cleanDrag();suppressClick();
+ if(target&&(d.kind===target.dataset.dropKind||(d.kind==='gear'&&target.dataset.dropKind==='creature'))){dropCard(d.kind,d.id,Number(target.dataset.dropI))}
+ else toast('Arraste a carta até uma posição compatível do painel.');
 },true);
-document.addEventListener('pointercancel',()=>{draggingCard?.ghost?.remove();draggingCard=null;document.body.classList.remove('bd-dragging')},true);
-// Deslizar lateralmente sobre a roleta também gira as cartas.
-let wheelSwipe=null;
-document.addEventListener('pointerdown',ev=>{if(ev.target.closest('.bd-wheel-track')&&!ev.target.closest('.bd-wheel-item.current'))wheelSwipe={x:ev.clientX,y:ev.clientY,pid:ev.pointerId};},true);
-document.addEventListener('pointerup',ev=>{if(!wheelSwipe||wheelSwipe.pid!==ev.pointerId)return;const dx=ev.clientX-wheelSwipe.x,dy=ev.clientY-wheelSwipe.y;wheelSwipe=null;if(Math.abs(dx)>35&&Math.abs(dx)>Math.abs(dy)){suppressAfterDrag=true;setTimeout(()=>{suppressAfterDrag=false},0);wheelTurn(dx<0?1:-1)}},true);
-
+document.addEventListener('pointercancel',cleanDrag,true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal){modal=null;render()}});
 if('serviceWorker' in navigator && location.protocol!=='file:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('PWA offline indisponível',err)));
 render();
